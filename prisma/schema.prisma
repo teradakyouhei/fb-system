@@ -1,0 +1,402 @@
+// FB-System Prisma Schema
+// 株式会社富士防災システム - 受注管理システム
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ====================================
+// ユーザー管理
+// ====================================
+
+model User {
+  id          String   @id @default(cuid())
+  username    String   @unique
+  userId      String   @unique        // ユーザーID
+  password    String
+  authority   String                  // 権限（管理者・一般）
+  staffId     String?                 // 担当者ID
+  staff       Staff?   @relation(fields: [staffId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("users")
+}
+
+// ====================================
+// マスター管理
+// ====================================
+
+// 得意先マスター
+model Customer {
+  id            String   @id @default(cuid())
+  code          String   @unique       // コード
+  name          String                 // 名称
+  name2         String?                // 名称2
+  honorific     String   @default("御中") // 敬称
+  postalCode    String?                // 郵便番号
+  address       String?                // 住所
+  address2      String?                // 住所2
+  tel           String?                // TEL
+  fax           String?                // FAX
+  email         String?                // メールアドレス
+  emailCc       String?                // メールアドレス(CC)
+  contactPerson String?                // 担当者名
+  closingDate   Int?                   // 締日
+  paymentDate   Int?                   // 支払日
+  comment       String?                // コメント
+  
+  // リレーション
+  orders        Order[]
+  schedules     Schedule[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("customers")
+}
+
+// 仕入先マスター
+model Supplier {
+  id            String   @id @default(cuid())
+  code          String   @unique       // コード
+  name          String                 // 名称
+  name2         String?                // 名称2
+  honorific     String   @default("御中") // 敬称
+  postalCode    String?                // 郵便番号
+  address       String?                // 住所
+  address2      String?                // 住所2
+  tel           String?                // TEL
+  fax           String?                // FAX
+  email         String?                // メールアドレス
+  contactPerson String?                // 担当者名
+  comment       String?                // コメント
+  
+  // リレーション
+  products      Product[]
+  purchaseOrders PurchaseOrder[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("suppliers")
+}
+
+// 商品マスター
+model Product {
+  id            String   @id @default(cuid())
+  code          String   @unique       // コード
+  name          String                 // 名称
+  unit          String?                // 単位
+  category      String?                // 分類
+  price         Int      @default(0)   // 歩掛
+  purchasePrice Int      @default(0)   // 仕入単価
+  stockQuantity Int      @default(0)   // 在庫単価
+  supplierId    String?                // 仕入先ID
+  supplier      Supplier? @relation(fields: [supplierId], references: [id])
+  
+  // リレーション
+  orderDetails  OrderDetail[]
+  purchaseOrderDetails PurchaseOrderDetail[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("products")
+}
+
+// 担当者マスター
+model Staff {
+  id                  String   @id @default(cuid())
+  code                String   @unique       // コード
+  name                String                 // 名称
+  salesCommission     Boolean  @default(false) // 売上・集金
+  inspectionApproval  String   @default("なし") // 見積承認
+  isActive            Boolean  @default(true)  // 在職状況
+  
+  // リレーション
+  users         User[]
+  orders        Order[]
+  schedules     Schedule[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("staff")
+}
+
+// ====================================
+// 受注管理
+// ====================================
+
+model Order {
+  id              String   @id @default(cuid())
+  orderNo         String   @unique       // 受注NO
+  customerId      String                 // 得意先
+  customer        Customer @relation(fields: [customerId], references: [id])
+  projectName     String                 // 作業名
+  orderDate       DateTime               // 受注日
+  deliveryDate    DateTime               // 納期日
+  salesAmount     Int      @default(0)   // 売上金額
+  status          String   @default("受注") // ステータス
+  staffId         String?                // 担当者
+  staff           Staff?   @relation(fields: [staffId], references: [id])
+  
+  // 受注明細
+  orderDetails    OrderDetail[]
+  
+  // 工事項目
+  constructionItems ConstructionItem[]
+  
+  // 請求・入金
+  billings        Billing[]
+  
+  // 日程
+  schedules       Schedule[]
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("orders")
+}
+
+// 受注明細
+model OrderDetail {
+  id            String   @id @default(cuid())
+  orderId       String
+  order         Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  lineNo        Int                      // 行番号
+  productId     String?
+  product       Product? @relation(fields: [productId], references: [id])
+  productName   String                   // 品名
+  specification String?                  // 仕様
+  quantity      Int                      // 数量
+  unit          String?                  // 単位
+  unitPrice     Int                      // 単価
+  amount        Int                      // 金額
+  purchaseFlag  Boolean  @default(false) // 入庫フラグ
+  purchaseDate  DateTime?                // 入庫日
+  storageEtc    String?                  // 納期等
+
+  @@map("order_details")
+}
+
+// 工事項目
+model ConstructionItem {
+  id            String   @id @default(cuid())
+  orderId       String
+  order         Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  itemName      String                   // 項目名
+  specification String?                  // 仕様
+  quantity      Int                      // 数量
+  unit          String?                  // 単位
+  unitPrice     Int                      // 単価
+  amount        Int                      // 金額
+  note          String?                  // 備考
+
+  @@map("construction_items")
+}
+
+// ====================================
+// 発注管理
+// ====================================
+
+model PurchaseOrder {
+  id              String   @id @default(cuid())
+  purchaseNo      String   @unique       // 発注NO
+  supplierId      String                 // 発注先
+  supplier        Supplier @relation(fields: [supplierId], references: [id])
+  contactPerson   String?                // 担当者名
+  address         String?                // 住所
+  tel             String?                // TEL
+  fax             String?                // FAX
+  orderDate       DateTime               // 発注日
+  deliveryDate    DateTime               // 入庫日
+  totalAmount     Int      @default(0)   // 発注金額
+  status          String   @default("発注済") // ステータス
+  
+  // 発注明細
+  purchaseOrderDetails PurchaseOrderDetail[]
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("purchase_orders")
+}
+
+model PurchaseOrderDetail {
+  id              String   @id @default(cuid())
+  purchaseOrderId String
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  lineNo          Int                    // NO
+  productId       String?
+  product         Product? @relation(fields: [productId], references: [id])
+  productName     String                 // 品名
+  specification   String?                // 仕様
+  quantity        Int                    // 数量
+  unit            String?                // 単位
+  unitPrice       Int                    // 単価
+  amount          Int                    // 金額
+  purchaseFlag    Boolean @default(false) // 入庫
+  purchaseDate    DateTime?              // 入庫日
+  storageEtc      String?                // 納期等
+
+  @@map("purchase_order_details")
+}
+
+// ====================================
+// 請求・入金管理
+// ====================================
+
+model Billing {
+  id              String   @id @default(cuid())
+  billingNo       String   @unique       // 請求NO
+  orderId         String?                // 受注NO
+  order           Order?   @relation(fields: [orderId], references: [id])
+  customerId      String?                // 得意先
+  billingDate     DateTime               // 請求日
+  billingAmount   Int                    // 請求金額
+  paymentDate     DateTime?              // 入金日
+  paymentAmount   Int      @default(0)   // 入金金額
+  balance         Int                    // 残高
+  status          String   @default("請求済") // ステータス
+  note            String?                // 備考
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("billings")
+}
+
+// ====================================
+// 日程管理
+// ====================================
+
+model Schedule {
+  id            String   @id @default(cuid())
+  scheduleDate  DateTime               // 日程日
+  startTime     String?                // 開始時間
+  endTime       String?                // 終了時間
+  orderId       String?                // 受注NO
+  order         Order?   @relation(fields: [orderId], references: [id])
+  customerId    String?                // 得意先
+  customer      Customer? @relation(fields: [customerId], references: [id])
+  projectName   String                 // 作業名
+  location      String?                // 場所
+  staffId       String?                // 担当者
+  staff         Staff?   @relation(fields: [staffId], references: [id])
+  workType      String?                // 作業種別
+  amount        Int?                   // 金額
+  status        String   @default("予定") // ステータス
+  note          String?                // 備考
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("schedules")
+}
+
+// ====================================
+// 帳票テンプレート管理
+// ====================================
+
+// 帳票テンプレート
+model FormTemplate {
+  id              String   @id @default(cuid())
+  name            String                 // テンプレート名
+  description     String?                // 説明
+  createdBy       String                 // 作成者ID
+  isPublic        Boolean  @default(false) // 公開フラグ
+  usageCount      Int      @default(0)   // 使用回数
+  
+  // テンプレートページ
+  pages           FormTemplatePage[]
+  
+  // 入力データ
+  formData        FormData[]
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("form_templates")
+}
+
+// 帳票テンプレートページ
+model FormTemplatePage {
+  id              String   @id @default(cuid())
+  templateId      String
+  template        FormTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  pageNumber      Int                    // ページ番号
+  backgroundImage String?                // 背景画像URL
+  
+  // フィールド
+  fields          FormTemplateField[]
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("form_template_pages")
+}
+
+// 帳票テンプレートフィールド
+model FormTemplateField {
+  id              String   @id @default(cuid())
+  pageId          String
+  page            FormTemplatePage @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  fieldId         String                 // フィールド識別ID
+  type            String                 // text, checkbox, select, textarea, date, number, calculation, radio
+  label           String                 // ラベル
+  placeholder     String?                // プレースホルダー
+  required        Boolean  @default(false) // 必須フラグ
+  validation      String?                // バリデーションルール
+  formula         String?                // 計算式
+  options         String?                // 選択肢（JSON配列）
+  
+  // スタイル情報（JSON形式で保存）
+  styleJson       String                 // {left, top, width, height, fontSize, backgroundColor, color, zIndex, borderColor}
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("form_template_fields")
+}
+
+// 帳票入力データ
+model FormData {
+  id              String   @id @default(cuid())
+  templateId      String
+  template        FormTemplate @relation(fields: [templateId], references: [id])
+  orderId         String?                // 受注との関連（オプション）
+  customerId      String?                // 得意先との関連
+  dataJson        String                 // 入力データ（JSON形式）
+  status          String   @default("draft") // draft, submitted, approved
+  submittedBy     String?                // 提出者
+  submittedAt     DateTime?              // 提出日時
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("form_data")
+}
+
+// ====================================
+// CSV インポート・ログ管理
+// ====================================
+
+model ImportLog {
+  id            String   @id @default(cuid())
+  fileName      String                 // ファイル名
+  fileSize      Int                    // ファイルサイズ
+  recordCount   Int                    // レコード数
+  successCount  Int                    // 成功件数
+  errorCount    Int                    // エラー件数
+  importType    String                 // インポート種別
+  status        String                 // ステータス
+  errorDetails  String?                // エラー詳細
+  userId        String?                // 実行ユーザー
+  
+  createdAt     DateTime @default(now())
+
+  @@map("import_logs")
+}

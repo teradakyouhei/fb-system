@@ -1,0 +1,152 @@
+// Prisma クライアント設定
+import { PrismaClient } from '@prisma/client';
+
+const globalForPrisma = globalThis as unknown as {
+  prisma: PrismaClient | undefined;
+};
+
+export const prisma = globalForPrisma.prisma ?? new PrismaClient({
+  log: ['query', 'error', 'warn'],
+  errorFormat: 'pretty',
+});
+
+if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+
+// データベース接続テスト
+export async function testDatabaseConnection() {
+  try {
+    await prisma.$connect();
+    console.log('✅ データベースに正常に接続しました');
+    return true;
+  } catch (error) {
+    console.error('❌ データベース接続エラー:', error);
+    return false;
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+// データベース初期化・シード関数
+export async function seedDatabase() {
+  try {
+    console.log('🌱 データベースの初期化を開始...');
+
+    // 管理者ユーザーの作成
+    const adminUser = await prisma.user.upsert({
+      where: { username: 'admin' },
+      update: {},
+      create: {
+        username: 'admin',
+        userId: 'admin',
+        password: '$2a$12$LQv3c1yqBw2/XVVQT4v1c.uXXr.O1Z5I2HrKtE3P/h9p8zVmIo5KS', // パスワード: admin123
+        authority: '管理者',
+      },
+    });
+
+    console.log('👤 管理者ユーザーを作成しました:', adminUser.username);
+
+    // サンプル担当者の作成
+    const sampleStaff = await prisma.staff.upsert({
+      where: { code: 'STAFF001' },
+      update: {},
+      create: {
+        code: 'STAFF001',
+        name: '田中太郎',
+        salesCommission: true,
+        inspectionApproval: '主任',
+      },
+    });
+
+    console.log('👷 サンプル担当者を作成しました:', sampleStaff.name);
+
+    // サンプル得意先の作成
+    const sampleCustomer = await prisma.customer.upsert({
+      where: { code: 'CUST001' },
+      update: {},
+      create: {
+        code: 'CUST001',
+        name: '株式会社サンプル商事',
+        honorific: '御中',
+        postalCode: '123-4567',
+        address: '東京都渋谷区サンプル1-2-3',
+        tel: '03-1234-5678',
+        email: 'sample@example.com',
+        contactPerson: '佐藤花子',
+        closingDate: 25,
+        paymentDate: 10,
+        comment: 'サンプルの得意先です',
+      },
+    });
+
+    console.log('🏢 サンプル得意先を作成しました:', sampleCustomer.name);
+
+    // サンプル仕入先の作成
+    const sampleSupplier = await prisma.supplier.upsert({
+      where: { code: 'SUPP001' },
+      update: {},
+      create: {
+        code: 'SUPP001',
+        name: '消防機器販売株式会社',
+        honorific: '御中',
+        postalCode: '456-7890',
+        address: '愛知県名古屋市中区仕入1-2-3',
+        tel: '052-1234-5678',
+        email: 'order@supplier.com',
+        contactPerson: '山田次郎',
+        comment: '主要仕入先',
+      },
+    });
+
+    console.log('🏭 サンプル仕入先を作成しました:', sampleSupplier.name);
+
+    // サンプル商品の作成
+    const sampleProducts = [
+      {
+        code: 'PROD001',
+        name: '消火器ABC粉末10型',
+        unit: '本',
+        category: '消火器',
+        price: 15000,
+        purchasePrice: 12000,
+        stockQuantity: 50,
+        supplierId: sampleSupplier.id,
+      },
+      {
+        code: 'PROD002',
+        name: '自動火災報知設備感知器',
+        unit: '個',
+        category: '火災報知設備',
+        price: 25000,
+        purchasePrice: 20000,
+        stockQuantity: 30,
+        supplierId: sampleSupplier.id,
+      },
+      {
+        code: 'PROD003',
+        name: 'スプリンクラーヘッド',
+        unit: '個',
+        category: 'スプリンクラー',
+        price: 8000,
+        purchasePrice: 6000,
+        stockQuantity: 100,
+        supplierId: sampleSupplier.id,
+      },
+    ];
+
+    for (const productData of sampleProducts) {
+      await prisma.product.upsert({
+        where: { code: productData.code },
+        update: {},
+        create: productData,
+      });
+    }
+
+    console.log('📦 サンプル商品を作成しました（3件）');
+
+    console.log('🎉 データベースの初期化が完了しました！');
+    return true;
+  } catch (error) {
+    console.error('❌ データベース初期化エラー:', error);
+    return false;
+  }
+}
